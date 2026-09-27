@@ -1,0 +1,75 @@
+---
+title: "Sessions vs Tokens: Choosing How Your App Remembers Users"
+description: "Server-side sessions and self-contained tokens both keep users signed in, but they fail, scale and get revoked in very different ways."
+category: Security
+tags: [Security, Authentication, JWT, API]
+publishedAt: 2026-08-28
+difficulty: Beginner
+series: Authentication Fundamentals
+seriesOrder: 2
+---
+
+HTTP is stateless. After a user proves who they are, *something* has to travel with every following request so the server doesn't ask for a password each time. That something is either a **session identifier** or a **token** — and the choice shapes revocation, scaling and your attack surface.
+
+## Introduction
+
+<Statement type="fact">
+A **session** stores the user's state on the server and gives the browser an opaque ID. A **self-contained token** (such as a JWT) carries the state itself, signed so the server can verify it without a lookup.
+</Statement>
+
+## Concept
+
+<ArchitectureDiagram
+  direction="horizontal"
+  title="Server-side session"
+  nodes={["Browser", { label: "Cookie", note: "sid=8f3c…" }, { label: "Session store", note: "Redis / DB" }, "User state"]}
+/>
+
+<ArchitectureDiagram
+  direction="horizontal"
+  title="Self-contained token"
+  nodes={["Client", { label: "Bearer token", note: "claims + signature" }, { label: "Signature check", note: "no lookup" }, "User state"]}
+/>
+
+| Concern | Sessions | Self-contained tokens |
+|---|---|---|
+| Revocation | Delete the session — immediate | Hard until expiry; needs deny-lists or short lifetimes |
+| Scaling | Shared store required | Any instance with the key can verify |
+| Size on the wire | Small ID | Grows with claims |
+| Best fit | Server-rendered web apps | APIs, service-to-service, mobile |
+| Main risk | Session fixation, CSRF | Token theft, long-lived tokens |
+
+## Example
+
+A cookie-based session in ASP.NET Core with safe defaults:
+
+```csharp
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.HttpOnly = true;                       // not readable from JavaScript
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Lax;           // basic CSRF mitigation
+        options.ExpireTimeSpan = TimeSpan.FromHours(8);
+        options.SlidingExpiration = true;
+    });
+```
+
+## Security
+
+<Warning>
+Never store access tokens in `localStorage` in a browser app. Any successful XSS can read them. Prefer HttpOnly cookies, or a backend-for-frontend (BFF) that keeps tokens server-side.
+</Warning>
+
+- Keep access tokens **short-lived** (minutes, not days) so theft has a limited window.
+- Rotate session IDs after sign-in to prevent **session fixation**.
+- If you use cookies, you must think about **CSRF**; if you use bearer tokens, you must think about **where the token is stored**.
+
+## Conclusion
+
+<Statement type="opinion">
+For a classic server-rendered web application, a cookie session is usually the simplest secure choice. Tokens earn their complexity when you have APIs consumed by multiple clients or services.
+</Statement>
+
+Next in the series: [JWT Explained](/articles/jwt-explained).

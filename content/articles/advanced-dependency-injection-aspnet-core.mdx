@@ -1,0 +1,96 @@
+---
+title: "Advanced Dependency Injection in ASP.NET Core"
+description: "Lifetimes, captive dependencies, keyed services, decorators and factories — the DI details that decide whether a large ASP.NET Core application stays maintainable."
+category: .NET
+tags: [.NET, C#, ASP.NET Core, Architecture]
+publishedAt: 2026-09-03
+difficulty: Advanced
+featured: true
+---
+
+The built-in container in ASP.NET Core is intentionally small. That's a strength — but it means the interesting problems are not *how to register a service*, they are *how lifetimes interact* and *how to compose behaviour* without a heavier container.
+
+## Introduction
+
+<Statement type="fact">
+`Microsoft.Extensions.DependencyInjection` supports three lifetimes: **Singleton** (one instance for the app), **Scoped** (one per request/scope) and **Transient** (new instance every resolve). Since .NET 8 it also supports **keyed services**.
+</Statement>
+
+## Lifetimes and captive dependencies
+
+A *captive dependency* happens when a longer-lived service holds on to a shorter-lived one:
+
+```csharp
+// ❌ Singleton captures a scoped DbContext — shared across requests and threads.
+builder.Services.AddSingleton<ReportCache>();
+builder.Services.AddDbContext<AppDbContext>(); // scoped
+
+public sealed class ReportCache(AppDbContext db) { /* ... */ }
+```
+
+<Warning title="Scope validation">
+In Development, ASP.NET Core validates scopes and throws when a singleton depends on a scoped service. Enable `ValidateScopes` and `ValidateOnBuild` in other environments' test runs too, so these bugs surface before production.
+</Warning>
+
+```csharp
+builder.Host.UseDefaultServiceProvider(options =>
+{
+    options.ValidateScopes = true;
+    options.ValidateOnBuild = true;
+});
+```
+
+When a singleton genuinely needs scoped work, create a scope explicitly:
+
+```csharp
+public sealed class ReportRefresher(IServiceScopeFactory scopes) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(5));
+        while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // ... refresh using a DbContext that lives only for this iteration
+        }
+    }
+}
+```
+
+## Keyed services
+
+Keyed services replace hand-rolled "strategy dictionaries":
+
+```csharp
+builder.Services.AddKeyedSingleton<IPaymentGateway, CardGateway>("card");
+builder.Services.AddKeyedSingleton<IPaymentGateway, BankTransferGateway>("bank");
+
+app.MapPost("/pay/card", ([FromKeyedServices("card")] IPaymentGateway gateway) => /* ... */);
+```
+
+## Decorators without a third-party container
+
+Cross-cutting concerns such as caching or logging fit the decorator pattern. With the default container you can register it with a factory:
+
+```csharp
+builder.Services.AddScoped<ProductRepository>();
+builder.Services.AddScoped<IProductRepository>(sp =>
+    new CachedProductRepository(
+        sp.GetRequiredService<ProductRepository>(),
+        sp.GetRequiredService<IMemoryCache>()));
+```
+
+<Tip>
+If you find yourself writing many decorators, a small library such as Scrutor can scan and decorate registrations — but add it only when the factory approach becomes noisy.
+</Tip>
+
+## Architecture
+
+<Statement type="opinion">
+A constructor with eight dependencies is not a DI problem; it's a design signal. The container makes it painless to inject more services, which is exactly why it hides classes that do too much.
+</Statement>
+
+## Conclusion
+
+Most DI issues in production are **lifetime issues**. Turn on validation, create scopes deliberately, and use keyed services and decorators to keep composition explicit.

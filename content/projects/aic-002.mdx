@@ -1,0 +1,96 @@
+---
+id: AIC-002
+name: AI Code Review Evaluation Harness
+description: "A repeatable benchmark for measuring how well AI reviewers find real bugs in .NET pull requests — and how often they raise false alarms."
+status: Testing
+stage: Evaluation
+featured: true
+technologies: [.NET, AI, LLM, Evaluation, GitHub Actions]
+startedAt: 2026-06-15
+updatedAt: 2026-09-12
+problem: "Opinions about AI code reviewers are mostly anecdotal. Without a fixed set of known bugs to measure against, it's impossible to tell whether a prompt or model change made reviews better or just different."
+objectives:
+  - Build a corpus of pull requests with known, labelled defects.
+  - Score AI review output for precision (useful findings) and recall (bugs caught).
+  - Compare prompts and models on the same corpus.
+  - Run automatically so regressions are visible.
+---
+
+<Callout type="note" title="Sample project">
+This is a sample project write-up. Replace the content with your own project details.
+</Callout>
+
+## Requirements
+
+- Seeded defects across categories: null handling, concurrency, authorization, resource leaks, injection.
+- Deterministic scoring rules that don't depend on a second model's judgement where avoidable.
+- Results stored per run so trends can be charted.
+
+## Research
+
+Reviewed existing approaches to evaluating LLM output: exact-match scoring, rubric-based human grading and model-graded evaluation. Model-graded evaluation is fast but needs spot-checking against human labels.
+
+## Architecture Options
+
+| Option | Notes |
+|---|---|
+| Manual spreadsheet | Fine for 10 cases, unmanageable at 100 |
+| Console app + JSON results | Simple, versionable, CI-friendly |
+| Hosted eval platform | Powerful, but another system to operate |
+
+## Architecture Decision
+
+**Decision:** a .NET console application that reads the corpus, calls the reviewer, and writes JSON results that CI publishes as an artifact.
+
+## System Architecture
+
+<ArchitectureDiagram
+  direction="horizontal"
+  title="Evaluation run"
+  nodes={["Corpus", "Reviewer under test", "Finding matcher", "Scorer", "Report"]}
+/>
+
+## Technology Stack
+
+- .NET console app
+- Provider-agnostic model client
+- GitHub Actions for scheduled runs
+
+## Implementation
+
+```csharp
+public sealed record SeededDefect(string File, int Line, string Category, string Description);
+
+public sealed record ReviewScore(int TruePositives, int FalsePositives, int Missed)
+{
+    public double Precision => TruePositives / (double)Math.Max(1, TruePositives + FalsePositives);
+    public double Recall => TruePositives / (double)Math.Max(1, TruePositives + Missed);
+}
+```
+
+## Testing
+
+The matcher and scorer have their own unit tests — an evaluation harness with bugs produces confident nonsense.
+
+## AI Evaluation
+
+Metrics per run: precision, recall, and findings by category. Results are compared against the previous run and the best run.
+
+## Security Review
+
+The corpus contains only synthetic code — no proprietary source is sent to external models.
+
+## Performance
+
+Runs are batched and cached by (prompt, model, case) so unchanged combinations aren't re-evaluated.
+
+## Lessons Learned
+
+<Statement type="lesson">
+Precision matters as much as recall. A reviewer that flags everything is ignored within a week.
+</Statement>
+
+## Future Improvements
+
+- Add real (anonymised) historical bugs to the corpus.
+- Track cost per useful finding.

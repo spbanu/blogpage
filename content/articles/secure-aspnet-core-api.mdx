@@ -1,0 +1,93 @@
+---
+title: "Securing an ASP.NET Core API: A Practical Baseline"
+description: "A checklist-driven baseline for ASP.NET Core APIs: authentication, authorization by default, input validation, rate limiting, secure headers and safe error handling."
+category: Security
+tags: [Security, ASP.NET Core, .NET, API, Authentication, Authorization]
+publishedAt: 2026-07-22
+difficulty: Advanced
+---
+
+Security is easiest to get right when it is the default rather than something each endpoint has to remember. This article builds a baseline for an ASP.NET Core API where forgetting a step fails *closed*.
+
+## Introduction
+
+<Statement type="opinion">
+The single most valuable setting in an ASP.NET Core API is a **fallback authorization policy**. It turns "did someone remember `[Authorize]`?" into "did someone explicitly opt out?".
+</Statement>
+
+## Concept
+
+<ArchitectureDiagram
+  title="Baseline middleware order"
+  nodes={[
+    { label: "Exception handler", note: "ProblemDetails, no stack traces" },
+    { label: "HSTS / HTTPS redirect" },
+    { label: "Rate limiter", note: "Per client / per IP" },
+    { label: "Authentication" },
+    { label: "Authorization", note: "Fallback policy: authenticated" },
+    { label: "Endpoints", note: "Validated input, resource checks" },
+  ]}
+/>
+
+## Example
+
+```csharp title="Program.cs"
+builder.Services.AddProblemDetails();
+
+builder.Services.AddAuthorization(options =>
+{
+    // Every endpoint requires an authenticated user unless it opts out with AllowAnonymous().
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("default", limiter =>
+    {
+        limiter.PermitLimit = 100;
+        limiter.Window = TimeSpan.FromMinutes(1);
+    });
+});
+
+var app = builder.Build();
+
+app.UseExceptionHandler();
+app.UseHsts();
+app.UseHttpsRedirection();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
+app.MapGroup("/api").RequireRateLimiting("default").MapOrders();
+```
+
+### Validate input at the boundary
+
+```csharp
+public sealed record CreateOrderRequest(
+    [property: Required, StringLength(64)] string CustomerReference,
+    [property: Range(1, 1000)] int Quantity);
+```
+
+## Security
+
+<Callout type="important" title="Baseline checklist">
+- Fallback policy requires authentication.
+- Resource-level authorization on every "load by ID".
+- Rate limiting on public endpoints.
+- `ProblemDetails` errors — no exception messages or stack traces in production.
+- Secrets from a vault or environment, never from `appsettings.json` in source control.
+- CORS lists explicit origins; never `AllowAnyOrigin` together with credentials.
+</Callout>
+
+<Warning>
+Don't return exception messages to clients. They leak table names, file paths and library versions that make an attacker's job easier.
+</Warning>
+
+## Conclusion
+
+A secure baseline is mostly about **defaults**: deny by default, validate by default, hide internals by default. Endpoints then only need to add the rules that are specific to them.

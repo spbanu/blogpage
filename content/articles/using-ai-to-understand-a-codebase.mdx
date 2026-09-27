@@ -1,0 +1,74 @@
+---
+title: "How I Use AI to Understand an Existing Codebase"
+description: "A structured workflow for using AI assistants to map an unfamiliar codebase — entry points, data flow, conventions and risks — while verifying every claim against the code."
+category: AI Engineering
+tags: [AI, Coding, Architecture, LLM]
+publishedAt: 2026-09-24
+difficulty: Intermediate
+series: Coding With AI
+seriesOrder: 1
+featured: true
+---
+
+Joining an existing codebase is one of the places where AI assistants genuinely help. They can read faster than I can. But they also summarise confidently, and a confident wrong summary is worse than none. This is the workflow I use to get the speed without inheriting the mistakes.
+
+## Introduction
+
+<Statement type="opinion">
+Use AI to generate **hypotheses** about a codebase, and use the code, tests and debugger to **confirm** them. Never the other way round.
+</Statement>
+
+## The workflow
+
+<WorkflowSteps steps={["Map the surface", "Trace one request", "Extract conventions", "List the risks", "Verify"]} />
+
+### 1. Map the surface
+
+Start broad. Ask for the project structure, entry points and external dependencies:
+
+```text title="Prompt"
+Here is the solution structure and the Program.cs files.
+List the deployable applications, their entry points, and every
+external system they talk to (databases, queues, HTTP APIs).
+Cite the file for each item. If you're unsure, say so.
+```
+
+The "cite the file" instruction matters. It turns a summary into something checkable.
+
+### 2. Trace one real request
+
+Pick one business-critical endpoint and ask the assistant to trace it end-to-end: controller → services → data access → side effects. Then set a breakpoint and walk the same path yourself.
+
+<Tip>
+Where the AI's trace and the debugger disagree, you've found either a hallucination or a genuinely confusing part of the code. Both are worth writing down.
+</Tip>
+
+### 3. Extract conventions
+
+Ask what patterns the codebase *actually* uses — error handling, validation, logging, transaction boundaries — with examples. This is where AI saves the most time, because conventions are spread across many files.
+
+### 4. List the risks
+
+```text title="Prompt"
+Based on the files I've shared, list areas that look risky to change:
+shared mutable state, missing tests, very large classes, hidden coupling.
+For each, explain why and cite the file.
+```
+
+### 5. Verify
+
+Every claim that I'm going to rely on gets checked against code or tests. Claims I can't verify are marked as *unconfirmed* in my notes.
+
+## Security
+
+<Warning>
+Check your organisation's policy before pasting proprietary code into an external AI service. Never paste secrets, connection strings or customer data — scrub configuration files first.
+</Warning>
+
+## Conclusion
+
+<Statement type="lesson">
+The output of this workflow is not the AI's summary — it's my own verified notes. The assistant speeds up reading; understanding is still my job.
+</Statement>
+
+Next in the series: [Using AI for Code Reviews](/articles/using-ai-for-code-review).

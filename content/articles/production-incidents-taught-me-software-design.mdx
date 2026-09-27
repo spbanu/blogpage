@@ -1,0 +1,69 @@
+---
+title: "What Production Incidents Taught Me About Software Design"
+description: "Production is where design assumptions meet reality. Recurring lessons about timeouts, observability, idempotency and failure boundaries."
+category: Engineering Experience
+tags: [Architecture, DevOps, Performance]
+publishedAt: 2026-09-06
+difficulty: Intermediate
+featured: true
+---
+
+<Callout type="note" title="Template article">
+This article is written as a structured template. The scenarios are **illustrative** and generic. Replace them with your own incidents (anonymised) to turn it into a first-hand account.
+</Callout>
+
+Design reviews happen in meeting rooms. Incidents happen at 2 a.m. The second is a far more honest reviewer of the first.
+
+## Introduction
+
+<Statement type="opinion">
+Most production incidents are not caused by one bad line of code. They are caused by an assumption — about latency, load, data shape or ordering — that nobody wrote down, so nobody tested.
+</Statement>
+
+## Lesson 1 — Every network call needs a timeout
+
+*Illustrative scenario:* a downstream service slows down. Callers wait on the default timeout, requests pile up, and a slow dependency becomes an outage for everything that shares the thread pool.
+
+```csharp
+builder.Services.AddHttpClient<InventoryClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Inventory:BaseUrl"]!);
+    client.Timeout = TimeSpan.FromSeconds(5); // explicit, not the 100 s default
+});
+```
+
+<Statement type="lesson">
+Design every integration by asking "what happens when this is slow?" — not only "what happens when this fails?".
+</Statement>
+
+## Lesson 2 — You can't fix what you can't see
+
+If the first question during an incident is "which requests are failing?", and nobody can answer it quickly, the system is under-instrumented. Correlation IDs, structured logs and a small set of meaningful metrics — latency, error rate, saturation — pay for themselves the first time something breaks.
+
+## Lesson 3 — Retries need idempotency
+
+Retries turn transient failures into successes — and non-idempotent operations into duplicates. If an operation can be retried, it needs an idempotency key or a natural uniqueness constraint.
+
+<Warning title="Retry storms">
+Retries without backoff and jitter can multiply load on a struggling dependency and prevent it from recovering.
+</Warning>
+
+## Lesson 4 — Draw failure boundaries on purpose
+
+<ArchitectureDiagram
+  title="Isolating a non-critical dependency"
+  nodes={[
+    "Checkout request",
+    { label: "Core path", note: "Payment + order — must succeed" },
+    { label: "Queue", note: "Boundary" },
+    { label: "Side effects", note: "Email, analytics — may retry later" },
+  ]}
+/>
+
+## Conclusion
+
+<Statement type="experience">
+[Replace with your own reflection: which incident changed how you design systems, and what do you now do differently?]
+</Statement>
+
+Production problems are engineering lessons. The design improves only if those lessons are written down and fed back into how the next system is built.

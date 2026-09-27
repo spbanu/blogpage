@@ -1,0 +1,56 @@
+---
+title: "Using AI for Code Reviews Without Outsourcing Judgement"
+description: "AI reviewers are good at catching the mechanical issues so human reviewers can focus on design, intent and risk. Here's how to set that division of labour up."
+category: AI Engineering
+tags: [AI, Coding, Security, Testing]
+publishedAt: 2026-08-20
+difficulty: Intermediate
+series: Coding With AI
+seriesOrder: 2
+---
+
+An AI reviewer never gets tired on the fortieth file of a pull request. A human reviewer understands why the change exists. The goal is to combine those strengths — not to replace one with the other.
+
+## Introduction
+
+<Statement type="opinion">
+AI review works best as a **first pass** that removes noise before a human looks at the change.
+</Statement>
+
+## What to delegate, what to keep
+
+| Good for AI first pass | Keep with human reviewers |
+|---|---|
+| Null handling, off-by-one, resource disposal | Does this change solve the right problem? |
+| Missing tests for new branches | Is this the right place for this logic? |
+| Obvious injection / validation gaps | Trade-offs, migration and rollout risk |
+| Naming and consistency nits | Long-term maintainability for this team |
+
+## A focused review prompt
+
+```text title="Prompt"
+Review this diff as a senior .NET engineer.
+Focus only on: correctness bugs, security issues, missing error handling,
+and missing tests for new branches.
+Do not comment on style.
+For each finding: file, line, severity (high/medium/low), why it matters,
+and a suggested fix. If you find nothing important, say so.
+```
+
+<Tip>
+Narrow prompts produce better reviews. "Find everything wrong" produces long lists of low-value nits that train people to ignore the tool.
+</Tip>
+
+## Handling false positives
+
+AI reviewers will flag things that are fine. Treat every finding as a question: *is this real?* If it isn't, dismiss it quickly — but if the same false positive keeps appearing, that's often a sign the code is confusing to humans too.
+
+## Security
+
+<Warning>
+An AI review that finds no security issues is not a security review. Authentication, authorization and data-handling changes still need an explicit human security check.
+</Warning>
+
+## Conclusion
+
+Use AI to make reviews faster and more consistent, and use the time saved for the questions only a human who knows the system can answer.

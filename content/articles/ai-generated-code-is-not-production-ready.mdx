@@ -1,0 +1,71 @@
+---
+title: "AI-Generated Code Is Not Production-Ready Code"
+description: "Code that compiles and passes a happy-path test is a draft. Here's the verification checklist AI-generated code goes through before it is allowed near production."
+category: AI Engineering
+tags: [AI, Coding, Security, Testing]
+publishedAt: 2026-09-14
+difficulty: Intermediate
+series: Coding With AI
+seriesOrder: 7
+featured: true
+---
+
+AI assistants are very good at producing code that *looks* finished. It compiles, it's formatted, it even has comments. That polish is exactly what makes it easy to skip the part where an engineer asks: *is this actually correct, secure and maintainable?*
+
+## Introduction
+
+<Statement type="opinion">
+Treat AI-generated code like a pull request from a fast, well-read contributor who has never seen your production environment. Review it with the same rigour — or more.
+</Statement>
+
+## Where generated code typically falls short
+
+- **Error handling** — the happy path is covered; timeouts, retries and partial failures are not.
+- **Security** — input validation, authorization checks and output encoding are frequently missing.
+- **Context** — it doesn't know your conventions, your existing helpers or your non-functional requirements.
+- **Outdated APIs** — suggestions may use deprecated or insecure library methods.
+- **Invented APIs** — methods or configuration options that simply don't exist.
+
+## Example
+
+A typical generated snippet:
+
+```csharp
+// Generated
+app.MapGet("/files/{name}", (string name) =>
+    Results.File(Path.Combine("uploads", name)));
+```
+
+It works in a demo. It also allows **path traversal** (`../../appsettings.json`). A reviewed version:
+
+```csharp
+// Reviewed
+app.MapGet("/files/{name}", (string name, IWebHostEnvironment env) =>
+{
+    var root = Path.GetFullPath(Path.Combine(env.ContentRootPath, "uploads"));
+    var fullPath = Path.GetFullPath(Path.Combine(root, name));
+
+    if (!fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        return Results.BadRequest();
+
+    return File.Exists(fullPath) ? Results.File(fullPath) : Results.NotFound();
+})
+.RequireAuthorization();
+```
+
+## The verification checklist
+
+<Callout type="important" title="Before merging AI-generated code">
+1. I can explain every line without the AI's help.
+2. It follows our existing patterns and uses our existing helpers.
+3. Tests cover failure cases, not only the happy path.
+4. Inputs are validated and authorization is enforced.
+5. Every API and package it uses exists, is current, and is licensed appropriately.
+6. Static analysis and security scanning pass.
+</Callout>
+
+## Conclusion
+
+<Statement type="lesson">
+Productivity gains from AI come from faster drafts, not from skipping review. The review is where the engineering happens.
+</Statement>

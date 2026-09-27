@@ -1,0 +1,67 @@
+---
+title: "Async/Await in ASP.NET Core: The Mistakes That Hurt in Production"
+description: "Sync-over-async, fire-and-forget, missing cancellation and unbounded parallelism — how async mistakes turn into thread-pool starvation and timeouts under load."
+category: .NET
+tags: [.NET, C#, ASP.NET Core, Performance]
+publishedAt: 2026-07-08
+difficulty: Intermediate
+---
+
+Async code usually works fine on a developer machine. The problems appear under load, when a handful of blocking calls starve the thread pool and every request slows down together.
+
+## Introduction
+
+<Statement type="fact">
+`async`/`await` doesn't make code faster. It frees the thread while waiting on I/O, so the same number of threads can serve more concurrent requests.
+</Statement>
+
+## Sync over async
+
+```csharp
+// ❌ Blocks a thread-pool thread while waiting.
+var customer = _client.GetCustomerAsync(id).Result;
+
+// ✅ Await all the way up.
+var customer = await _client.GetCustomerAsync(id);
+```
+
+<Warning title="Thread-pool starvation">
+Each `.Result` or `.Wait()` holds a thread hostage. Under load the pool grows slowly, requests queue, and latency climbs across the whole application — not just on the endpoint with the bug.
+</Warning>
+
+## Fire-and-forget
+
+```csharp
+// ❌ Exceptions are lost; scoped services may be disposed mid-flight.
+_ = _emailService.SendWelcomeAsync(user);
+```
+
+Queue the work instead and process it in a `BackgroundService` with its own scope, or use a durable queue when the work must not be lost.
+
+## Pass the cancellation token
+
+```csharp
+app.MapGet("/reports/{id}", async (int id, IReportService reports, CancellationToken ct) =>
+    await reports.BuildAsync(id, ct));
+```
+
+`CancellationToken` in a minimal API handler is bound to `HttpContext.RequestAborted`, so work stops when the client disconnects.
+
+## Bounded parallelism
+
+```csharp
+await Parallel.ForEachAsync(
+    customerIds,
+    new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = ct },
+    async (id, token) => await SyncCustomerAsync(id, token));
+```
+
+<Tip>
+Prefer `Parallel.ForEachAsync` with a limit over `Task.WhenAll(ids.Select(...))` for large collections. Unbounded fan-out can exhaust connection pools or trigger rate limits downstream.
+</Tip>
+
+## Conclusion
+
+<Statement type="lesson">
+When an ASP.NET Core app becomes slow "everywhere at once" under load, look for blocking calls on async code before scaling out.
+</Statement>

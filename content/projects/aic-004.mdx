@@ -1,0 +1,81 @@
+---
+id: AIC-004
+name: Secure API Reference Template
+description: "An ASP.NET Core API template with secure defaults: fallback authorization, rate limiting, ProblemDetails, secrets from a vault and security tests in CI."
+status: Building
+stage: Architecture
+technologies: [.NET, ASP.NET Core, OAuth, OpenTelemetry, Docker]
+startedAt: 2026-08-10
+updatedAt: 2026-09-18
+problem: "New services are often started by copying an old one, inheriting its shortcuts along with its structure. Secure defaults end up depending on who happened to create the service."
+objectives:
+  - Provide a starting point where the secure option is the default option.
+  - Include tests that fail if a security default is removed.
+  - Document every default and the reason for it.
+---
+
+<Callout type="note" title="Sample project">
+This is a sample project write-up. Replace the content with your own project details.
+</Callout>
+
+## Requirements
+
+- JWT bearer authentication against a configurable OpenID Connect authority.
+- Fallback policy requiring authentication on all endpoints.
+- Rate limiting, secure headers and `ProblemDetails` error responses.
+- OpenTelemetry traces and metrics out of the box.
+
+## Research
+
+Compared the ASP.NET Core defaults against the OWASP API Security Top 10 to decide which protections belong in a template and which are service-specific.
+
+## Architecture Options
+
+| Option | Notes |
+|---|---|
+| `dotnet new` template | Easy to adopt, drifts after creation |
+| Shared NuGet package of defaults | Updates flow to services, adds coupling |
+| Both | Template for structure, package for security defaults |
+
+## Architecture Decision
+
+Leaning towards **both** — decision record in progress.
+
+## System Architecture
+
+<ArchitectureDiagram
+  title="Template layers"
+  nodes={["Security defaults package", "Service template", "Security tests", "CI pipeline"]}
+/>
+
+## Technology Stack
+
+ASP.NET Core, OpenTelemetry, Docker, GitHub Actions.
+
+## Implementation
+
+In progress. See [Securing an ASP.NET Core API](/articles/secure-aspnet-core-api) for the baseline this template encodes.
+
+## Testing
+
+Security tests assert, for example, that an endpoint without `AllowAnonymous()` returns `401` without a token.
+
+## AI Evaluation
+
+Not applicable — this project is not an AI system, though AI-assisted review is used during development.
+
+## Security Review
+
+Planned review against OWASP API Security Top 10 before the first release.
+
+## Performance
+
+Baseline benchmarks to be added once the middleware pipeline is final.
+
+## Lessons Learned
+
+To be written.
+
+## Future Improvements
+
+Optional modules for multi-tenancy and API versioning.

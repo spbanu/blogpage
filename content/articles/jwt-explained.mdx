@@ -1,0 +1,80 @@
+---
+title: "JWT Explained: What's Inside a Token and What to Validate"
+description: "A JSON Web Token is just three Base64URL segments. The security comes entirely from how carefully you validate it."
+category: Security
+tags: [Security, JWT, Authentication, ASP.NET Core]
+publishedAt: 2026-08-12
+difficulty: Intermediate
+series: Authentication Fundamentals
+seriesOrder: 3
+---
+
+JWTs are everywhere in modern APIs, and they are frequently misunderstood. A JWT is not encrypted by default, it is not a session, and it is only as trustworthy as the validation code that reads it.
+
+## Introduction
+
+<Statement type="fact">
+A signed JWT (a JWS) has three parts separated by dots: `header.payload.signature`. The header and payload are Base64URL-encoded JSON — **anyone can decode and read them**. The signature proves they were issued by someone holding the key and haven't been modified.
+</Statement>
+
+## Concept
+
+```json title="Decoded payload"
+{
+  "iss": "https://login.example.com/",
+  "aud": "orders-api",
+  "sub": "3f2b9c1e-…",
+  "scope": "orders.read",
+  "iat": 1790000000,
+  "exp": 1790000900
+}
+```
+
+| Claim | Meaning | Validate? |
+|---|---|---|
+| `iss` | Who issued the token | Yes — must match your identity provider |
+| `aud` | Who the token is for | Yes — must be *your* API |
+| `exp` / `nbf` | Validity window | Yes — with small clock skew |
+| `sub` | The subject (user or client) | Use as the stable identifier |
+| `scope` / roles | What was granted | Use in authorization policies |
+
+## Example
+
+ASP.NET Core validates signature, issuer, audience and lifetime when configured properly:
+
+```csharp
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "https://login.example.com/"; // discovers signing keys
+        options.Audience = "orders-api";
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromMinutes(1),
+        };
+    });
+```
+
+## Security
+
+<Warning>
+Never put secrets or sensitive personal data in a JWT payload. It is readable by anyone who holds the token, including browser extensions and logs.
+</Warning>
+
+- **Pin the algorithm.** Reject `alg: none` and don't let the token choose between symmetric and asymmetric algorithms.
+- **Always check the audience.** A valid token for a *different* API is still a valid signature.
+- **Keep lifetimes short** and use refresh tokens for longevity.
+- **Don't log full tokens.** Log the `jti` or a hash if you need correlation.
+
+<Tip>
+Paste tokens only into tools that decode locally. A token in a third-party website is a leaked token.
+</Tip>
+
+## Conclusion
+
+A JWT is a signed envelope, not a vault. Treat decoding as trivial and validation as everything.

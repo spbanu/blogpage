@@ -1,0 +1,60 @@
+---
+title: "How I Debug Problems That Don't Reproduce Locally"
+description: "A systematic approach for bugs that only appear in production: gather evidence, list the environmental differences, form hypotheses and test them one at a time."
+category: Engineering Experience
+tags: [DevOps, .NET, Performance]
+publishedAt: 2026-08-05
+difficulty: Intermediate
+---
+
+<Callout type="note" title="Template article">
+This is a method article with generic examples. Add your own anonymised cases to make it first-hand.
+</Callout>
+
+"Works on my machine" is not a conclusion, it's the start of an investigation. If a bug only appears in production, something about production is different — the job is to find out *what*.
+
+## Introduction
+
+<Statement type="opinion">
+Resist the urge to change code before you can explain the bug. A fix you can't explain is a guess, and guesses in production are expensive.
+</Statement>
+
+## Step 1 — Collect evidence before theories
+
+- Exact error messages, stack traces and timestamps.
+- Which users, tenants, regions or instances are affected — and which are not.
+- What changed recently: deployments, configuration, data volume, dependencies.
+
+## Step 2 — List the differences
+
+| Dimension | Local | Production |
+|---|---|---|
+| Data | Small, clean seed data | Large, historical, messy |
+| Concurrency | One user | Many simultaneous requests |
+| Configuration | `appsettings.Development.json` | Environment variables, vault secrets |
+| Infrastructure | Single process | Load balancer, multiple instances |
+| Time | Local time zone | UTC servers, DST transitions |
+| Culture | `en-US` developer machine | Server culture settings |
+
+<Tip>
+Culture and time zone differences are behind a surprising number of "impossible" bugs — date parsing, decimal separators and string comparison all depend on them.
+</Tip>
+
+## Step 3 — Form hypotheses and test them one at a time
+
+Write each hypothesis down with the evidence that would confirm or reject it. Then test the cheapest one first: a log query, a feature flag, a targeted diagnostic endpoint.
+
+```csharp
+// Make culture explicit instead of inheriting it from the server.
+var amount = decimal.Parse(input, NumberStyles.Number, CultureInfo.InvariantCulture);
+```
+
+## Step 4 — Capture the fix as a test
+
+Once the cause is known, reproduce it in an automated test before fixing it. That test is what stops the bug from coming back.
+
+## Conclusion
+
+<Statement type="lesson">
+Most non-reproducible bugs become reproducible once you replicate the right difference — data, concurrency, configuration or time.
+</Statement>

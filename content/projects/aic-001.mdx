@@ -1,0 +1,127 @@
+---
+id: AIC-001
+name: AI Engineering Assistant
+description: "An internal assistant that answers questions about a codebase and its engineering documentation, with sources for every answer."
+status: Building
+stage: Implementation
+featured: true
+technologies: [.NET, LLM, RAG, PostgreSQL, pgvector]
+startedAt: 2026-07-01
+updatedAt: 2026-09-20
+problem: "Engineering knowledge is scattered across repositories, wikis, ADRs and ticket history. Finding out why something works the way it does takes longer than changing it, and general-purpose chat assistants answer confidently without knowing the actual system."
+objectives:
+  - Answer codebase and architecture questions with citations to the source file or document.
+  - Say "I don't know" when retrieval finds nothing relevant, instead of guessing.
+  - Keep all source code and documents inside infrastructure I control.
+  - Measure answer quality with a repeatable evaluation set, not impressions.
+---
+
+<Callout type="note" title="Sample project">
+This is a sample project write-up that demonstrates the project page structure. Replace the content with your own project details.
+</Callout>
+
+## Requirements
+
+- Index Markdown docs, ADRs and C# source files from selected repositories.
+- Answer in under ~10 seconds for typical questions.
+- Every answer includes links to the chunks it was grounded on.
+- Access follows repository permissions — nobody sees content they couldn't already read.
+
+## Research
+
+The research phase compared three approaches:
+
+1. **Long-context prompting** — paste relevant files into a large context window.
+2. **Retrieval-Augmented Generation (RAG)** — embed chunks, retrieve the most relevant ones per question.
+3. **Fine-tuning** — train a model on the codebase.
+
+<Statement type="experiment">
+Early experiments suggested that long-context prompting works well for a single service but becomes slow and expensive across many repositories, and that fine-tuning is poorly suited to knowledge that changes weekly.
+</Statement>
+
+## Architecture Options
+
+| Option | Pros | Cons |
+|---|---|---|
+| Long context only | Simple, no index | Cost and latency grow with repo size |
+| RAG with vector DB | Scales, citations are natural | Chunking and retrieval quality need tuning |
+| Fine-tuning | Fast inference | Stale quickly, no citations, expensive to refresh |
+
+## Architecture Decision
+
+**Decision:** RAG with PostgreSQL + pgvector, behind a small ASP.NET Core API.
+
+**Why:** PostgreSQL is already familiar operationally, pgvector is sufficient at this scale, and keeping vectors next to metadata makes permission filtering a simple `WHERE` clause.
+
+**Trade-off accepted:** retrieval quality becomes the main engineering problem, so evaluation is built early.
+
+## System Architecture
+
+<ArchitectureDiagram
+  title="AIC-001 request flow"
+  nodes={[
+    { label: "Developer", note: "Question in chat UI" },
+    { label: "ASP.NET Core API", note: "AuthN/AuthZ, rate limits" },
+    { label: "Retriever", note: "Hybrid: vector + keyword" },
+    { label: "PostgreSQL + pgvector", note: "Chunks, metadata, ACLs" },
+    { label: "LLM", note: "Answer from retrieved context only" },
+    { label: "Response", note: "Answer + citations" },
+  ]}
+/>
+
+## Technology Stack
+
+- **API:** ASP.NET Core minimal APIs (.NET)
+- **Storage:** PostgreSQL with pgvector
+- **Ingestion:** background worker that chunks files by syntax (classes and methods for C#, headings for Markdown)
+- **Model access:** provider-agnostic interface so models can be swapped and compared
+
+## Implementation
+
+The ingestion worker is the most important component. Chunking by syntax rather than by fixed character counts keeps a method and its XML doc comment together:
+
+```csharp
+public sealed record CodeChunk(
+    string Repository,
+    string Path,
+    string Symbol,
+    string Content,
+    int StartLine,
+    int EndLine);
+```
+
+## Testing
+
+- Unit tests for chunkers (given a file, assert the produced symbols and line ranges).
+- Integration tests against a real PostgreSQL container.
+- Permission tests: a user without access to repo B must never receive chunks from repo B.
+
+## AI Evaluation
+
+An evaluation set of question / expected-source pairs is scored on:
+
+- **Retrieval hit rate** — did the expected source appear in the top-k chunks?
+- **Groundedness** — is every claim in the answer supported by a cited chunk?
+- **Refusal correctness** — does it say "I don't know" for out-of-scope questions?
+
+## Security Review
+
+- Prompt injection from indexed content is treated as untrusted input; retrieved text is never allowed to change system instructions or trigger tools.
+- Secrets scanning runs before ingestion so credentials are never embedded.
+- Queries and answers are logged without storing source content in logs.
+
+## Performance
+
+Targets: p95 under 10 seconds end-to-end, retrieval under 300 ms. Measurements will be added once the evaluation set is stable.
+
+## Lessons Learned
+
+<Statement type="lesson">
+Build the evaluation set before tuning anything. Without it, every change to chunking or prompts is judged by gut feeling.
+</Statement>
+
+## Future Improvements
+
+- Re-ranking step after retrieval.
+- Incremental re-indexing triggered by merged pull requests.
+- Answer feedback loop feeding the evaluation set.

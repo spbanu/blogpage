@@ -1,0 +1,56 @@
+---
+title: "Premature Architecture: When Clean Architecture Isn't Clean"
+description: "Layers, abstractions and microservices have real costs. How to decide how much architecture a system needs today — and how to keep the option to add more later."
+category: Architecture
+tags: [Architecture, Clean Architecture, .NET]
+publishedAt: 2026-06-24
+difficulty: Advanced
+---
+
+Architecture patterns exist to manage complexity. Applied too early, they *create* it: five projects, three interfaces and a mediator pipeline to save a record to a database.
+
+## Introduction
+
+<Statement type="opinion">
+The right amount of architecture is the least amount that keeps the next likely change cheap.
+</Statement>
+
+## The cost of abstraction
+
+Every layer and interface adds files to navigate, indirection to debug and concepts for new team members to learn. Those costs are worth paying when they buy something — testability, replaceability, team independence. They are pure overhead when they don't.
+
+```csharp
+// An interface with exactly one implementation, no test double and no plan for another
+public interface IOrderService { Task<Order> GetAsync(Guid id); }
+public sealed class OrderService : IOrderService { /* ... */ }
+```
+
+<Tip>
+Ask what an abstraction protects you from. If the answer is "a change we have no reason to expect", it can wait.
+</Tip>
+
+## A simpler starting point
+
+<ArchitectureDiagram
+  title="Modular monolith"
+  nodes={[
+    { label: "API", note: "Thin endpoints" },
+    { label: "Feature modules", note: "Orders · Billing · Catalog" },
+    { label: "Shared kernel", note: "Small and stable" },
+    { label: "Database", note: "Schema per module" },
+  ]}
+/>
+
+A modular monolith with clear module boundaries keeps most of the benefits people want from microservices — separation, ownership — without distributed-systems failure modes.
+
+## When to add more
+
+- A module needs to scale or deploy independently.
+- Teams are blocked on each other's releases.
+- A dependency genuinely needs to be swappable (and you have a second implementation).
+
+## Conclusion
+
+<Statement type="lesson">
+Keep boundaries clear, keep code simple inside them, and let real requirements — not diagrams — decide when to split.
+</Statement>

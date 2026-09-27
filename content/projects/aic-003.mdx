@@ -1,0 +1,81 @@
+---
+id: AIC-003
+name: Engineering Knowledge Base (RAG)
+description: "A retrieval layer over architecture decision records, runbooks and post-incident reviews, so past decisions are easy to find and cite."
+status: Research
+stage: Research
+featured: true
+technologies: [.NET, RAG, PostgreSQL, pgvector, AI]
+startedAt: 2026-09-01
+updatedAt: 2026-09-22
+problem: "Architecture decisions and incident learnings are written once and rarely found again. Teams repeat discussions and mistakes because the context behind earlier decisions is hard to locate."
+objectives:
+  - Make ADRs, runbooks and incident reviews searchable by meaning, not only keywords.
+  - Return the original document and section with every answer.
+  - Reuse the ingestion and retrieval components from AIC-001 where possible.
+---
+
+<Callout type="note" title="Sample project">
+This is a sample project in the research stage. Sections below list the open questions rather than results.
+</Callout>
+
+## Requirements
+
+- Ingest Markdown ADRs and runbooks from repositories.
+- Preserve document structure (title, status, date, decision) as metadata.
+- Filter by status — superseded decisions should be clearly marked.
+
+## Research
+
+Open questions being investigated:
+
+1. Chunk by heading or by fixed size for long runbooks?
+2. Does hybrid search (keyword + vector) outperform pure vector search for short, jargon-heavy queries?
+3. How should superseded ADRs be ranked?
+
+## Architecture Options
+
+To be decided after the research spike. Candidates: extend AIC-001's index, or a separate index with its own schema.
+
+## Architecture Decision
+
+Pending.
+
+## System Architecture
+
+<ArchitectureDiagram
+  title="Proposed flow"
+  nodes={["Markdown sources", "Ingestion + metadata", "Hybrid index", "Retriever", "Answer with citations"]}
+/>
+
+## Technology Stack
+
+Tentative: same stack as AIC-001 (.NET, PostgreSQL + pgvector).
+
+## Implementation
+
+Not started.
+
+## Testing
+
+Planned: a golden set of questions whose answers are known ADRs.
+
+## AI Evaluation
+
+Planned metrics: retrieval hit rate at k=5, citation accuracy.
+
+## Security Review
+
+Runbooks may reference internal hostnames; ingestion must respect repository permissions.
+
+## Performance
+
+Not yet measured.
+
+## Lessons Learned
+
+To be written at the end of the research stage.
+
+## Future Improvements
+
+Link incident reviews to the ADRs they motivated.

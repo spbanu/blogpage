@@ -1,0 +1,85 @@
+---
+title: "OAuth 2.0 Explained Through a Real-World API"
+description: "OAuth 2.0 lets an application act on a user's behalf without ever seeing their password. Here is how the pieces fit, using a realistic orders API as the example."
+category: Security
+tags: [Security, OAuth, OIDC, Authorization, API]
+publishedAt: 2026-09-10
+difficulty: Intermediate
+series: OAuth & OIDC
+seriesOrder: 2
+featured: true
+---
+
+Imagine a reporting dashboard that needs to read a customer's orders from your Orders API. The dashboard should get *read* access to *that customer's* orders — and never learn the customer's password. That is exactly the problem OAuth 2.0 solves.
+
+## Introduction
+
+<Statement type="fact">
+OAuth 2.0 is a **delegated authorization** framework (RFC 6749). It issues access tokens that represent a limited grant. It is not, by itself, an authentication protocol — that is what OpenID Connect adds on top.
+</Statement>
+
+## Concept
+
+OAuth has four roles:
+
+| Role | In our example |
+|---|---|
+| **Resource owner** | The customer |
+| **Client** | The reporting dashboard |
+| **Authorization server** | Your identity provider |
+| **Resource server** | The Orders API |
+
+The recommended flow for user-facing apps is the **Authorization Code flow with PKCE**:
+
+<ArchitectureDiagram
+  title="Authorization Code + PKCE"
+  nodes={[
+    { label: "1. Dashboard", note: "Redirects user with code_challenge" },
+    { label: "2. Authorization server", note: "User signs in and consents" },
+    { label: "3. Redirect back", note: "Short-lived authorization code" },
+    { label: "4. Token request", note: "code + code_verifier" },
+    { label: "5. Access token", note: "scope=orders.read, aud=orders-api" },
+    { label: "6. Orders API", note: "Validates token, applies policy" },
+  ]}
+/>
+
+<Callout type="important">
+**Scopes** limit what the client can do; they don't replace your own authorization rules. A token with `orders.read` still only allows reading orders the *user* is permitted to see.
+</Callout>
+
+## Example
+
+The resource server side — the Orders API — only needs to validate tokens and enforce scopes:
+
+```csharp
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("orders.read", p => p.RequireClaim("scope", "orders.read"));
+    options.AddPolicy("orders.write", p => p.RequireClaim("scope", "orders.write"));
+});
+
+app.MapGet("/orders", (ClaimsPrincipal user, IOrderQueries queries) =>
+        queries.ForCustomerAsync(user.FindFirstValue("sub")!))
+   .RequireAuthorization("orders.read");
+```
+
+<Tip>
+Some identity providers put multiple scopes in one space-separated `scope` claim. Check how your provider formats it and write the policy accordingly — or normalise claims once in a claims transformation.
+</Tip>
+
+## Security
+
+- **Use PKCE for every client**, including confidential ones. It protects against authorization code interception.
+- **Avoid the Implicit and Password grants.** They are deprecated in current best practice (OAuth 2.0 Security BCP, RFC 9700).
+- **Validate `redirect_uri` exactly.** Wildcard redirect URIs are a classic token-theft vector.
+- **Request the minimum scopes** the client actually needs.
+
+<Warning>
+Machine-to-machine calls should use the **Client Credentials** grant — never a shared user account with a stored password.
+</Warning>
+
+## Conclusion
+
+OAuth is easier to reason about when you name the four roles for your own system. Once you know who the client, the authorization server and the resource server are, every flow becomes a question of *how the client gets a token* and *how the API decides what that token allows*.
+
+Up next in the series: Authorization Code Flow and PKCE in depth.

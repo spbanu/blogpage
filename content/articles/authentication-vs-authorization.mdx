@@ -1,0 +1,126 @@
+---
+title: "Authentication vs Authorization: What Developers Often Get Wrong"
+description: "Authentication establishes identity. Authorization determines what that identity can access. Understanding the distinction is fundamental to building secure applications."
+category: Security
+tags: [Security, Authentication, Authorization, ASP.NET Core, API]
+publishedAt: 2026-09-18
+difficulty: Beginner
+series: Authentication Fundamentals
+seriesOrder: 1
+featured: true
+---
+
+Few words get mixed up in code reviews as often as *authentication* and *authorization*. They sound similar, they are often configured next to each other, and frameworks sometimes blur the line. But treating them as one thing is how applications end up with endpoints that check *who* you are and forget to check *what you are allowed to do*.
+
+## Introduction
+
+<Statement type="fact">
+**Authentication** answers "who are you?". **Authorization** answers "what are you allowed to do?". Authentication always happens first — you cannot decide what someone may access until you know who they are.
+</Statement>
+
+A useful analogy is an office building. Showing your badge at reception is authentication: the building now knows who you are. Whether that badge opens the server room is authorization: a separate decision, made at the door, based on rules about your role.
+
+## Concept
+
+| | Authentication | Authorization |
+|---|---|---|
+| Question | Who is the caller? | May the caller do this? |
+| Input | Credentials, tokens, certificates | Identity + claims + resource + policy |
+| Failure status | `401 Unauthorized` | `403 Forbidden` |
+| Typical owner | Identity provider | Your application |
+| Changes when | The user signs in | Roles, ownership or rules change |
+
+<Callout type="important">
+The HTTP status names are historically confusing: `401 Unauthorized` actually means **unauthenticated**. Return `401` when you don't know who the caller is, and `403` when you know exactly who they are and the answer is still no.
+</Callout>
+
+### Where each one lives
+
+<ArchitectureDiagram
+  title="Request pipeline"
+  nodes={[
+    "Client",
+    { label: "Authentication", note: "Validate token → build identity" },
+    { label: "Authorization", note: "Evaluate policy for this endpoint" },
+    { label: "Resource check", note: "Does this user own this order?" },
+    "Handler",
+  ]}
+/>
+
+The last step is the one that gets missed. Endpoint-level authorization ("only customers can call this") is not the same as resource-level authorization ("only *this* customer can read *this* order").
+
+## Example
+
+In ASP.NET Core both concerns are registered separately — which is a helpful reminder that they are different things:
+
+```csharp title="Program.cs"
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["Auth:Authority"];
+        options.Audience = builder.Configuration["Auth:Audience"];
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("CanReadOrders", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireClaim("scope", "orders.read"));
+});
+
+var app = builder.Build();
+
+app.UseAuthentication(); // Who are you?
+app.UseAuthorization();  // Are you allowed?
+```
+
+Endpoint policies are only half of the story. The resource check belongs next to the data:
+
+```csharp showLineNumbers
+app.MapGet("/orders/{id:guid}", async (
+    Guid id,
+    ClaimsPrincipal user,
+    IOrderRepository orders,
+    IAuthorizationService authorization) =>
+{
+    var order = await orders.FindAsync(id);
+    if (order is null) return Results.NotFound();
+
+    // Resource-based authorization: is this caller allowed to see *this* order?
+    var result = await authorization.AuthorizeAsync(user, order, "OrderOwner");
+    return result.Succeeded ? Results.Ok(order) : Results.Forbid();
+})
+.RequireAuthorization("CanReadOrders");
+```
+
+<Tip>
+Prefer **policy-based authorization** over scattering `if (user.IsInRole(...))` checks through your handlers. Policies are named, testable and reviewable in one place.
+</Tip>
+
+## Security
+
+Common mistakes that come from blurring the two concepts:
+
+- **"Authenticated means allowed."** Adding `[Authorize]` with no policy only proves the caller has *some* valid identity.
+- **Trusting identifiers from the request.** Reading `userId` from the query string instead of from the validated token lets callers impersonate each other (an *Insecure Direct Object Reference*).
+- **Authorizing in the UI only.** Hiding a button is a usability feature, not a security control. The API must enforce the rule.
+- **Returning 404 vs 403 inconsistently.** Decide deliberately whether to reveal that a resource exists.
+
+<Warning>
+Never derive the caller's identity from anything other than the validated credential. Headers, route values and request bodies are attacker-controlled input.
+</Warning>
+
+## Conclusion
+
+<Statement type="fact">
+Broken access control sits at the top of the OWASP Top 10 (2021 edition). It is rarely exotic — usually a missing check.
+</Statement>
+
+<Statement type="opinion">
+If you only take one habit from this article, make it asking "*whose* data is this?" in every handler that loads a record by ID.
+</Statement>
+
+Authentication gets the caller through the front door. Authorization decides every door after that. Keep them separate in your mental model, in your code, and in your tests.
+
+Next in the series: [Sessions vs Tokens](/articles/sessions-vs-tokens).

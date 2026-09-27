@@ -1,0 +1,41 @@
+---
+# Files starting with "_" are ignored by the site. Copy this file to create a new article.
+# The file name becomes the URL: content/articles/my-article.mdx → /articles/my-article
+title: "Article title"
+description: "One or two sentences used on cards, in search and in SEO metadata."
+category: Security # Security | .NET | AI Engineering | Architecture | Coding | DevOps | Engineering Experience
+tags: [Security, .NET]
+publishedAt: 2026-01-01
+# updatedAt: 2026-01-15
+difficulty: Intermediate # Beginner | Intermediate | Advanced | Expert (optional)
+# series: Authentication Fundamentals
+# seriesOrder: 4
+# featured: true
+# readingTime: 8 # optional — calculated automatically when omitted
+---
+
+Intro paragraph. Use `##` and `###` headings — they build the table of contents.
+
+## Introduction
+
+<Statement type="fact">A verifiable statement.</Statement>
+<Statement type="experience">Something you observed first-hand.</Statement>
+<Statement type="opinion">Your view.</Statement>
+<Statement type="experiment">Something you tried.</Statement>
+<Statement type="lesson">What you'd do differently.</Statement>
+
+## Components
+
+<Important>Key concept.</Important>
+<Warning>Security warning.</Warning>
+<Tip>Helpful tip.</Tip>
+<Callout type="note" title="Custom title">Neutral aside.</Callout>
+
+<ArchitectureDiagram title="Flow" nodes={["Client", { label: "API", note: "ASP.NET Core" }, "Database"]} />
+
+```csharp title="Example.cs" showLineNumbers {2}
+public async Task<User?> GetUserAsync(string id)
+{
+    return await repository.GetUserAsync(id);
+}
+```
