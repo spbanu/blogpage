@@ -24,10 +24,10 @@ function textOf(node: HastNode): string {
  */
 function rehypeCodeTitleToPre() {
   const visit = (node: HastNode) => {
-    if (node.tagName === "figure" && node.properties && "dataRehypePrettyCodeFigure" in node.properties) {
+    if (node.tagName === "figure" && node.properties && "data-rehype-pretty-code-figure" in node.properties) {
       const children = node.children ?? [];
       const caption = children.find(
-        (child) => child.tagName === "figcaption" && child.properties && "dataRehypePrettyCodeTitle" in child.properties,
+        (child) => child.tagName === "figcaption" && child.properties && "data-rehype-pretty-code-title" in child.properties,
       );
       const pre = children.find((child) => child.tagName === "pre");
       if (caption && pre) {

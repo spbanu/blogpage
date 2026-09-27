@@ -13,8 +13,13 @@ export function Navbar() {
           <NavLinks />
         </nav>
         <div className="flex shrink-0 items-center gap-2">
-          <SearchButton className="hidden md:inline-flex" />
-          <SearchButton compact className="md:hidden" />
+          {/* Visibility lives on wrappers so it can't conflict with the buttons' own display classes. */}
+          <div className="hidden md:block">
+            <SearchButton />
+          </div>
+          <div className="md:hidden">
+            <SearchButton compact />
+          </div>
           <ThemeToggle />
           <div className="xl:hidden">
             <MobileNav />
